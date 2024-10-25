@@ -12,6 +12,7 @@ type Config struct {
 	TempDir       string
 	Port          string
 	APIKeyFile    string
+	LogFile       string
 }
 
 // LoadConfig 加载配置
@@ -21,6 +22,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("temp_dir", "/tmp")
 	viper.SetDefault("port", "8080")
 	viper.SetDefault("api_key_file", "api_keys.txt") // 修改这里，使用相对路径
+	viper.SetDefault("log_file", "clamd-api.log")
 
 	// 读取配置文件
 	viper.SetConfigName("config")
@@ -42,6 +44,7 @@ func LoadConfig() (*Config, error) {
 		TempDir:       viper.GetString("temp_dir"),
 		Port:          viper.GetString("port"),
 		APIKeyFile:    viper.GetString("api_key_file"),
+		LogFile:       viper.GetString("log_file"),
 	}
 
 	return config, nil

@@ -64,8 +64,28 @@ var listAPIKeysCmd = &cobra.Command{
 	Run:   listAPIKeys,
 }
 
+func initLogger() {
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Fatalf("加载配置失败: %v", err)
+	}
+
+	logFile := cfg.LogFile
+	if !filepath.IsAbs(logFile) {
+		logFile = filepath.Join(executableDir, logFile)
+	}
+
+	file, err := os.OpenFile(logFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("无法打开日志文件: %v", err)
+	}
+
+	log.SetOutput(file)
+	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+}
+
 func init() {
-	cobra.OnInitialize(initConfig, initAPIKeyManager)
+	cobra.OnInitialize(initConfig, initAPIKeyManager, initLogger)
 
 	// 获取可执行文件所在目录
 	ex, err := os.Executable()
@@ -143,7 +163,6 @@ func runServer(cmd *cobra.Command, args []string) {
 	http.HandleFunc("/ping", api.LoggingMiddleware(api.AuthMiddleware(handler.PingHandler, apiKeyManager)))
 	http.HandleFunc("/reload", api.LoggingMiddleware(api.AuthMiddleware(handler.ReloadHandler, apiKeyManager)))
 
-	log.Println("已加载的 API Keys:")
 	apiKeyManager.DebugPrintKeys()
 
 	// 启动服务器

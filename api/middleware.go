@@ -14,7 +14,7 @@ func LoggingMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)
-		log.Printf("%s %s %s", r.Method, r.RequestURI, time.Since(start))
+		log.Printf("%s %s %s %s", r.RemoteAddr, r.Method, r.RequestURI, time.Since(start))
 	}
 }
 
@@ -27,7 +27,6 @@ func AuthMiddleware(next http.HandlerFunc, apiKeyManager *auth.APIKeyManager) ht
 			return
 		}
 
-		log.Printf("收到的 API Key: %s", apiKey)
 		apiKeyManager.DebugPrintKeys()
 
 		if !apiKeyManager.IsValidAPIKey(apiKey) {

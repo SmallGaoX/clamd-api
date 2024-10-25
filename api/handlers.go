@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 
@@ -37,6 +38,7 @@ func (h *Handler) VersionHandler(w http.ResponseWriter, r *http.Request) {
 
 	version, err := h.scanner.GetVersion()
 	if err != nil {
+		log.Printf("获取版本失败: %v", err)
 		http.Error(w, "获取版本失败", http.StatusInternalServerError)
 		return
 	}
