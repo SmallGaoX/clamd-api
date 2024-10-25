@@ -30,29 +30,6 @@ func NewClient(address string) Scanner {
 	return &Client{address: address}
 }
 
-// ScanFile 扫描单个文件
-func (c *Client) ScanFile(filePath string) (bool, error) {
-	conn, err := net.DialTimeout("tcp", c.address, 10*time.Second)
-	if err != nil {
-		return false, fmt.Errorf("连接ClamAV失败: %v", err)
-	}
-	defer conn.Close()
-
-	// 发送SCAN命令
-	_, err = fmt.Fprintf(conn, "SCAN %s\n", filePath)
-	if err != nil {
-		return false, fmt.Errorf("发送SCAN命令失败: %v", err)
-	}
-
-	// 读取扫描结果
-	response, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		return false, fmt.Errorf("读取扫描结果失败: %v", err)
-	}
-
-	return strings.Contains(response, "OK") && !strings.Contains(response, "FOUND"), nil
-}
-
 // GetVersion 获取ClamAV版本信息
 func (c *Client) GetVersion() (string, error) {
 	conn, err := net.Dial("tcp", c.address)
@@ -135,6 +112,29 @@ func (c *Client) Shutdown() error {
 	}
 
 	return nil
+}
+
+// ScanFile 扫描单个文件
+func (c *Client) ScanFile(filePath string) (bool, error) {
+	conn, err := net.DialTimeout("tcp", c.address, 10*time.Second)
+	if err != nil {
+		return false, fmt.Errorf("连接ClamAV失败: %v", err)
+	}
+	defer conn.Close()
+
+	// 发送SCAN命令
+	_, err = fmt.Fprintf(conn, "SCAN %s\n", filePath)
+	if err != nil {
+		return false, fmt.Errorf("发送SCAN命令失败: %v", err)
+	}
+
+	// 读取扫描结果
+	response, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		return false, fmt.Errorf("读取扫描结果失败: %v", err)
+	}
+
+	return strings.Contains(response, "OK") && !strings.Contains(response, "FOUND"), nil
 }
 
 // ScanStream 扫描文件流

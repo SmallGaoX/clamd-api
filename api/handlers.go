@@ -4,11 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
-	"mime/multipart"
 	"net/http"
-	"os"
-	"path/filepath"
 	"strings"
 
 	"clamd-api/auth"
@@ -30,55 +26,6 @@ func NewHandler(scanner clamav.Scanner, cfg *config.Config, apiKeyManager *auth.
 		config:        cfg,
 		apiKeyManager: apiKeyManager,
 	}
-}
-
-// ScanHandler 处理文件扫描请求
-func (h *Handler) ScanHandler(w http.ResponseWriter, r *http.Request) {
-	// 获取上传的文件
-	file, _, err := r.FormFile("file")
-	if err != nil {
-		http.Error(w, "获取上传文件失败", http.StatusBadRequest)
-		return
-	}
-	defer file.Close()
-
-	// 扫描文件
-	isSafe, err := h.scanner.ScanStream(file)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("扫描文件失败: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	// 返回扫描结果
-	w.Header().Set("Content-Type", "text/plain")
-	if isSafe {
-		w.Write([]byte("ALL GOOD"))
-	} else {
-		w.Write([]byte("!!! VIRUS FOUND !!!"))
-	}
-}
-
-// saveUploadedFile 保存上传的文件到指定目录
-func saveUploadedFile(fileHeader *multipart.FileHeader, dir string) (string, error) {
-	src, err := fileHeader.Open()
-	if err != nil {
-		return "", fmt.Errorf("打开上传文件失败: %v", err)
-	}
-	defer src.Close()
-
-	dstPath := filepath.Join(dir, fileHeader.Filename)
-	dst, err := os.Create(dstPath)
-	if err != nil {
-		return "", fmt.Errorf("创建目标文件失败: %v", err)
-	}
-	defer dst.Close()
-
-	_, err = io.Copy(dst, src)
-	if err != nil {
-		return "", fmt.Errorf("复制文件内容失败: %v", err)
-	}
-
-	return dstPath, nil
 }
 
 // VersionHandler 处理获取ClamAV版本的请求
@@ -133,40 +80,119 @@ func (h *Handler) ReloadHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("病毒数据库已重新加载"))
 }
 
-// ScanFileListHandler 处理文件列表扫描请求
-func (h *Handler) ScanFileListHandler(w http.ResponseWriter, r *http.Request) {
-	// 确保是 POST 请求
+// ScanFileHandler 处理文件扫描请求（支持单个或多个文件）
+func (h *Handler) ScanFileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "只允许 POST 请求", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// 读取请求体
-	body, err := ioutil.ReadAll(r.Body)
+	// 解析多部分表单数据
+	err := r.ParseMultipartForm(32 << 20) // 32 MB
 	if err != nil {
-		http.Error(w, "读取请求体失败", http.StatusBadRequest)
+		http.Error(w, "解析表单数据失败", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
-
-	// 将请求体分割成文件路径列表
-	filePaths := strings.Split(string(body), "\n")
 
 	results := make(map[string]string)
 
-	for _, filePath := range filePaths {
-		filePath = strings.TrimSpace(filePath)
-		if filePath == "" {
-			continue
+	// 遍历所有上传的文件
+	for _, fileHeaders := range r.MultipartForm.File {
+		for _, fileHeader := range fileHeaders {
+			file, err := fileHeader.Open()
+			if err != nil {
+				results[fileHeader.Filename] = fmt.Sprintf("打开文件失败: %v", err)
+				continue
+			}
+			defer file.Close()
+
+			isSafe, err := h.scanner.ScanStream(file)
+			if err != nil {
+				results[fileHeader.Filename] = fmt.Sprintf("扫描错误: %v", err)
+			} else if isSafe {
+				results[fileHeader.Filename] = "SECURE"
+			} else {
+				results[fileHeader.Filename] = "!!! THREAT !!!"
+			}
+		}
+	}
+
+	// 如果只有一个文件，返回简单的文本响应
+	if len(results) == 1 {
+		for _, result := range results {
+			w.Header().Set("Content-Type", "text/plain")
+			w.Write([]byte(result))
+			return
+		}
+	}
+
+	// 如果有多个文件，返回 JSON 响应
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
+}
+
+// ScanStreamHandler 处理文件列表扫描请求（支持文件路径列表和多文件上传）
+func (h *Handler) ScanStreamHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "只允许 POST 请求", http.StatusMethodNotAllowed)
+		return
+	}
+
+	results := make(map[string]string)
+
+	// 检查是否是多部分表单数据
+	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
+		// 处理多文件上传
+		err := r.ParseMultipartForm(32 << 20) // 32 MB
+		if err != nil {
+			http.Error(w, "解析表单数据失败", http.StatusBadRequest)
+			return
 		}
 
-		isSafe, err := h.scanner.ScanFile(filePath)
+		for _, fileHeaders := range r.MultipartForm.File {
+			for _, fileHeader := range fileHeaders {
+				file, err := fileHeader.Open()
+				if err != nil {
+					results[fileHeader.Filename] = fmt.Sprintf("打开文件失败: %v", err)
+					continue
+				}
+				defer file.Close()
+
+				isSafe, err := h.scanner.ScanStream(file)
+				if err != nil {
+					results[fileHeader.Filename] = fmt.Sprintf("扫描错误: %v", err)
+				} else if isSafe {
+					results[fileHeader.Filename] = "SECURE"
+				} else {
+					results[fileHeader.Filename] = "!!! THREAT !!!"
+				}
+			}
+		}
+	} else {
+		// 处理文件路径列表
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
-			results[filePath] = fmt.Sprintf("扫描错误: %v", err)
-		} else if isSafe {
-			results[filePath] = "ALL GOOD"
-		} else {
-			results[filePath] = "!!! VIRUS FOUND !!!"
+			http.Error(w, "读取请求体失败", http.StatusBadRequest)
+			return
+		}
+		defer r.Body.Close()
+
+		filePaths := strings.Split(string(body), "\n")
+
+		for _, filePath := range filePaths {
+			filePath = strings.TrimSpace(filePath)
+			if filePath == "" {
+				continue
+			}
+
+			isSafe, err := h.scanner.ScanFile(filePath)
+			if err != nil {
+				results[filePath] = fmt.Sprintf("扫描错误: %v", err)
+			} else if isSafe {
+				results[filePath] = "ALL GOOD"
+			} else {
+				results[filePath] = "!!! VIRUS FOUND !!!"
+			}
 		}
 	}
 

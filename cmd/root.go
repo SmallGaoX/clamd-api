@@ -128,14 +128,8 @@ func runServer(cmd *cobra.Command, args []string) {
 	handler := api.NewHandler(scanner, cfg, apiKeyManager)
 
 	// 设置路由
-	http.HandleFunc("/scan", api.LoggingMiddleware(api.AuthMiddleware(handler.ScanHandler, apiKeyManager)))
-	http.HandleFunc("/scan-file-list", api.LoggingMiddleware(api.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost {
-			http.Error(w, "只允许 POST 请求", http.StatusMethodNotAllowed)
-			return
-		}
-		handler.ScanFileListHandler(w, r)
-	}, apiKeyManager)))
+	http.HandleFunc("/scan", api.LoggingMiddleware(api.AuthMiddleware(handler.ScanFileHandler, apiKeyManager)))
+	http.HandleFunc("/stream", api.LoggingMiddleware(api.AuthMiddleware(handler.ScanStreamHandler, apiKeyManager)))
 	http.HandleFunc("/version", api.LoggingMiddleware(api.AuthMiddleware(handler.VersionHandler, apiKeyManager)))
 	http.HandleFunc("/ping", api.LoggingMiddleware(api.AuthMiddleware(handler.PingHandler, apiKeyManager)))
 	http.HandleFunc("/reload", api.LoggingMiddleware(api.AuthMiddleware(handler.ReloadHandler, apiKeyManager)))
