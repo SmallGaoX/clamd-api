@@ -14,6 +14,7 @@ import (
 
 const encryptionKey = "clamav-api-secret" // 用于 XOR 加密的密钥
 
+// APIKeyManager 管理 API keys
 type APIKeyManager struct {
 	apiKeys     map[string]string // 键是加密后的 API key，值是名称
 	nameToKey   map[string]string // 键是名称，值是加密后的 API key
@@ -22,6 +23,7 @@ type APIKeyManager struct {
 	lastModTime time.Time
 }
 
+// NewAPIKeyManager 创建一个新的 APIKeyManager
 func NewAPIKeyManager(file string) (*APIKeyManager, error) {
 	manager := &APIKeyManager{
 		apiKeys:   make(map[string]string),
@@ -37,6 +39,7 @@ func NewAPIKeyManager(file string) (*APIKeyManager, error) {
 	return manager, nil
 }
 
+// loadAPIKeys 从文件加载 API keys
 func (m *APIKeyManager) loadAPIKeys() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -76,9 +79,10 @@ func (m *APIKeyManager) loadAPIKeys() error {
 	return scanner.Err()
 }
 
+// IsValidAPIKey 检查 API key 是否有效
 func (m *APIKeyManager) IsValidAPIKey(apiKey string) bool {
 	if err := m.loadAPIKeys(); err != nil {
-		fmt.Printf("Error reloading API keys: %v\n", err)
+		fmt.Printf("重新加载 API keys 时出错: %v\n", err)
 		return false
 	}
 
@@ -98,11 +102,11 @@ func (m *APIKeyManager) GetAPIKeyName(apiKey string) (string, bool) {
 	return name, exists
 }
 
+// AddAPIKey 添加新的 API key
 func (m *APIKeyManager) AddAPIKey(apiKey, name string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	// 检查名称是否已存在
 	if _, exists := m.nameToKey[name]; exists {
 		return errors.New("API key 名称已存在")
 	}
@@ -115,7 +119,6 @@ func (m *APIKeyManager) AddAPIKey(apiKey, name string) error {
 	m.apiKeys[encryptedKey] = name
 	m.nameToKey[name] = encryptedKey
 
-	// 将新的加密后的 API key 追加到文件中
 	file, err := os.OpenFile(m.file, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0600)
 	if err != nil {
 		return err
@@ -126,6 +129,7 @@ func (m *APIKeyManager) AddAPIKey(apiKey, name string) error {
 	return err
 }
 
+// RemoveAPIKey 删除指定的 API key
 func (m *APIKeyManager) RemoveAPIKey(name string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
@@ -143,10 +147,10 @@ func (m *APIKeyManager) RemoveAPIKey(name string) error {
 		return err
 	}
 
-	// 重新加载 API keys
 	return m.reloadAPIKeys()
 }
 
+// rewriteAPIKeysFile 重写 API keys 文件
 func (m *APIKeyManager) rewriteAPIKeysFile() error {
 	file, err := os.Create(m.file)
 	if err != nil {
@@ -164,18 +168,21 @@ func (m *APIKeyManager) rewriteAPIKeysFile() error {
 	return nil
 }
 
+// reloadAPIKeys 重新加载 API keys
 func (m *APIKeyManager) reloadAPIKeys() error {
 	m.apiKeys = make(map[string]string)
 	m.nameToKey = make(map[string]string)
 	return m.loadAPIKeys()
 }
 
+// LoadAPIKeys 加载 API keys
 func (m *APIKeyManager) LoadAPIKeys() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 	return m.loadAPIKeys()
 }
 
+// encryptAPIKey 加密 API key
 func encryptAPIKey(apiKey string) string {
 	encrypted := make([]byte, len(apiKey))
 	for i := 0; i < len(apiKey); i++ {
@@ -184,6 +191,7 @@ func encryptAPIKey(apiKey string) string {
 	return base64.StdEncoding.EncodeToString(encrypted)
 }
 
+// decryptAPIKey 解密 API key
 func decryptAPIKey(encryptedKey string) (string, error) {
 	decoded, err := base64.StdEncoding.DecodeString(encryptedKey)
 	if err != nil {
@@ -244,12 +252,12 @@ func obfuscateAPIKey(encryptedKey string) string {
 	return encryptedKey[:4] + "..." + encryptedKey[len(encryptedKey)-4:]
 }
 
-// DebugPrintKeys 添加这个调试方法
+// DebugPrintKeys 打印存储的 API keys（用于调试）
 func (m *APIKeyManager) DebugPrintKeys() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	fmt.Println("Stored API Keys:")
+	fmt.Println("存储的 API Keys:")
 	for encryptedKey, name := range m.apiKeys {
-		fmt.Printf("Encrypted: %s, Name: %s\n", encryptedKey, name)
+		fmt.Printf("加密的: %s, 名称: %s\n", encryptedKey, name)
 	}
 }

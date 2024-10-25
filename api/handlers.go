@@ -53,8 +53,7 @@ func (h *Handler) ScanHandler(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	// 保存文件到临时目录
-	tempDir := h.config.TempDir
-	tempFile, err := saveUploadedFile(header, tempDir)
+	tempFile, err := saveUploadedFile(header, h.config.TempDir)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("保存文件失败: %v", err), http.StatusInternalServerError)
 		return
@@ -76,14 +75,12 @@ func (h *Handler) ScanHandler(w http.ResponseWriter, r *http.Request) {
 
 // saveUploadedFile 保存上传的文件到指定目录
 func saveUploadedFile(fileHeader *multipart.FileHeader, dir string) (string, error) {
-	// 打开上传的文件
 	src, err := fileHeader.Open()
 	if err != nil {
 		return "", fmt.Errorf("打开上传文件失败: %v", err)
 	}
 	defer src.Close()
 
-	// 创建目标文件
 	dstPath := filepath.Join(dir, fileHeader.Filename)
 	dst, err := os.Create(dstPath)
 	if err != nil {
@@ -91,7 +88,6 @@ func saveUploadedFile(fileHeader *multipart.FileHeader, dir string) (string, err
 	}
 	defer dst.Close()
 
-	// 复制文件内容
 	_, err = io.Copy(dst, src)
 	if err != nil {
 		return "", fmt.Errorf("复制文件内容失败: %v", err)
@@ -144,7 +140,7 @@ func (h *Handler) ReloadHandler(w http.ResponseWriter, r *http.Request) {
 
 	err := h.scanner.Reload()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("重新加载失: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("重新加载失败: %v", err), http.StatusInternalServerError)
 		return
 	}
 

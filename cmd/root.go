@@ -20,6 +20,7 @@ var (
 	apiKeyManager *auth.APIKeyManager
 )
 
+// rootCmd 表示基本命令
 var rootCmd = &cobra.Command{
 	Use:   "clamd-api",
 	Short: "ClamAV REST API服务",
@@ -27,12 +28,14 @@ var rootCmd = &cobra.Command{
 	Run:   runServer,
 }
 
+// apiKeyCmd 表示API key管理命令
 var apiKeyCmd = &cobra.Command{
 	Use:   "apikey",
 	Short: "管理 API keys",
 	Long:  `添加、删除、列出 API keys。`,
 }
 
+// addAPIKeyCmd 表示添加API key的命令
 var addAPIKeyCmd = &cobra.Command{
 	Use:   "add <name>",
 	Short: "添加新的 API key",
@@ -41,6 +44,7 @@ var addAPIKeyCmd = &cobra.Command{
 	Run:   addAPIKey,
 }
 
+// removeAPIKeyCmd 表示删除API key的命令
 var removeAPIKeyCmd = &cobra.Command{
 	Use:   "remove <name>",
 	Short: "删除指定名称的 API key",
@@ -49,6 +53,7 @@ var removeAPIKeyCmd = &cobra.Command{
 	Run:   removeAPIKey,
 }
 
+// listAPIKeysCmd 表示列出所有API key的命令
 var listAPIKeysCmd = &cobra.Command{
 	Use:   "list",
 	Short: "列出所有的 API key",
@@ -59,17 +64,20 @@ var listAPIKeysCmd = &cobra.Command{
 func init() {
 	cobra.OnInitialize(initConfig, initAPIKeyManager)
 
+	// 设置命令行参数
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "配置文件路径 (默认为 ./config.yaml)")
 	rootCmd.PersistentFlags().String("clamav_address", "localhost:3310", "ClamAV服务器地址")
 	rootCmd.PersistentFlags().String("temp_dir", "/tmp", "临时文件目录")
 	rootCmd.PersistentFlags().String("port", "8080", "API服务器端口")
 	rootCmd.PersistentFlags().String("api_key_file", "./api_keys.txt", "API key 文件路径")
 
+	// 绑定命令行参数到viper
 	viper.BindPFlag("clamav_address", rootCmd.PersistentFlags().Lookup("clamav_address"))
 	viper.BindPFlag("temp_dir", rootCmd.PersistentFlags().Lookup("temp_dir"))
 	viper.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
 	viper.BindPFlag("api_key_file", rootCmd.PersistentFlags().Lookup("api_key_file"))
 
+	// 添加子命令
 	apiKeyCmd.AddCommand(addAPIKeyCmd)
 	apiKeyCmd.AddCommand(removeAPIKeyCmd)
 	apiKeyCmd.AddCommand(listAPIKeysCmd)
@@ -77,6 +85,7 @@ func init() {
 	rootCmd.AddCommand(apiKeyCmd)
 }
 
+// initConfig 读取配置文件和环境变量
 func initConfig() {
 	if cfgFile != "" {
 		viper.SetConfigFile(cfgFile)
@@ -92,6 +101,7 @@ func initConfig() {
 	}
 }
 
+// initAPIKeyManager 初始化API key管理器
 func initAPIKeyManager() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -104,6 +114,7 @@ func initAPIKeyManager() {
 	}
 }
 
+// runServer 运行API服务器
 func runServer(cmd *cobra.Command, args []string) {
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -123,7 +134,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	http.HandleFunc("/stream-scan", api.LoggingMiddleware(api.AuthMiddleware(handler.StreamScanHandler, apiKeyManager)))
 	http.HandleFunc("/multi-scan", api.LoggingMiddleware(api.AuthMiddleware(handler.MultiScanHandler, apiKeyManager)))
 
-	log.Println("Loaded API Keys:")
+	log.Println("已加载的 API Keys:")
 	apiKeyManager.DebugPrintKeys()
 
 	// 启动服务器
@@ -131,6 +142,7 @@ func runServer(cmd *cobra.Command, args []string) {
 	log.Fatal(http.ListenAndServe(":"+cfg.Port, nil))
 }
 
+// addAPIKey 添加新的API key
 func addAPIKey(cmd *cobra.Command, args []string) {
 	name := args[0]
 
@@ -148,6 +160,7 @@ func addAPIKey(cmd *cobra.Command, args []string) {
 	fmt.Println("请保存此 API key，因为它不会再次显示。")
 }
 
+// removeAPIKey 删除指定的API key
 func removeAPIKey(cmd *cobra.Command, args []string) {
 	name := args[0]
 
@@ -159,6 +172,7 @@ func removeAPIKey(cmd *cobra.Command, args []string) {
 	fmt.Printf("成功删除名称为 '%s' 的 API key\n", name)
 }
 
+// listAPIKeys 列出所有的API key
 func listAPIKeys(cmd *cobra.Command, args []string) {
 	apiKeys := apiKeyManager.GetAllObfuscatedAPIKeys()
 
@@ -181,6 +195,7 @@ func listAPIKeys(cmd *cobra.Command, args []string) {
 	}
 }
 
+// Execute 执行根命令
 func Execute() {
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatalf("执行命令失败: %v", err)
