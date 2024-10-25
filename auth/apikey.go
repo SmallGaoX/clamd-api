@@ -9,15 +9,17 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"time"
 )
 
 const encryptionKey = "clamav-api-secret" // 用于 XOR 加密的密钥
 
 type APIKeyManager struct {
-	apiKeys   map[string]string // 键是加密后的 API key，值是名称
-	nameToKey map[string]string // 键是名称，值是加密后的 API key
-	mutex     sync.RWMutex
-	file      string
+	apiKeys     map[string]string // 键是加密后的 API key，值是名称
+	nameToKey   map[string]string // 键是名称，值是加密后的 API key
+	mutex       sync.RWMutex
+	file        string
+	lastModTime time.Time
 }
 
 func NewAPIKeyManager(file string) (*APIKeyManager, error) {
@@ -36,14 +38,26 @@ func NewAPIKeyManager(file string) (*APIKeyManager, error) {
 }
 
 func (m *APIKeyManager) loadAPIKeys() error {
+	m.mutex.Lock()
+	defer m.mutex.Unlock()
+
+	fileInfo, err := os.Stat(m.file)
+	if err != nil {
+		return err
+	}
+
+	if fileInfo.ModTime() == m.lastModTime {
+		return nil // 文件未被修改，无需重新加载
+	}
+
 	file, err := os.Open(m.file)
 	if err != nil {
-		if os.IsNotExist(err) {
-			return os.WriteFile(m.file, []byte{}, 0600)
-		}
 		return err
 	}
 	defer file.Close()
+
+	m.apiKeys = make(map[string]string)
+	m.nameToKey = make(map[string]string)
 
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
@@ -57,10 +71,17 @@ func (m *APIKeyManager) loadAPIKeys() error {
 		}
 	}
 
+	m.lastModTime = fileInfo.ModTime()
+
 	return scanner.Err()
 }
 
 func (m *APIKeyManager) IsValidAPIKey(apiKey string) bool {
+	if err := m.loadAPIKeys(); err != nil {
+		fmt.Printf("Error reloading API keys: %v\n", err)
+		return false
+	}
+
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
 	encryptedKey := encryptAPIKey(apiKey)
