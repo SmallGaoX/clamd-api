@@ -1,4 +1,4 @@
-module clamd-api
+module github.com/SmallGaoX/clamd-api
 
 go 1.22
 

@@ -9,10 +9,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
-	"clamd-api/api"
-	"clamd-api/auth"
-	"clamd-api/clamav"
-	"clamd-api/config"
+	"github.com/SmallGaoX/clamd-api/api"
+	"github.com/SmallGaoX/clamd-api/auth"
+	"github.com/SmallGaoX/clamd-api/clamav"
+	"github.com/SmallGaoX/clamd-api/config"
 )
 
 var (

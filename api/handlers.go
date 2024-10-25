@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"clamd-api/auth"
-	"clamd-api/clamav"
-	"clamd-api/config"
+	"github.com/SmallGaoX/clamd-api/auth"
+	"github.com/SmallGaoX/clamd-api/clamav"
+	"github.com/SmallGaoX/clamd-api/config"
 )
 
 // Handler 结构体包含所有API处理程序

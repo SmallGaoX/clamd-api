@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"clamd-api/auth"
+	"github.com/SmallGaoX/clamd-api/auth"
 )
 
 // LoggingMiddleware 记录请求的中间件
