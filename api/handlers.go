@@ -4,10 +4,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"mime/multipart"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"clamd-api/auth"
 	"clamd-api/clamav"
@@ -129,4 +131,45 @@ func (h *Handler) ReloadHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte("病毒数据库已重新加载"))
+}
+
+// ScanFileListHandler 处理文件列表扫描请求
+func (h *Handler) ScanFileListHandler(w http.ResponseWriter, r *http.Request) {
+	// 确保是 POST 请求
+	if r.Method != http.MethodPost {
+		http.Error(w, "只允许 POST 请求", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 读取请求体
+	body, err := ioutil.ReadAll(r.Body)
+	if err != nil {
+		http.Error(w, "读取请求体失败", http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	// 将请求体分割成文件路径列表
+	filePaths := strings.Split(string(body), "\n")
+
+	results := make(map[string]string)
+
+	for _, filePath := range filePaths {
+		filePath = strings.TrimSpace(filePath)
+		if filePath == "" {
+			continue
+		}
+
+		isSafe, err := h.scanner.ScanFile(filePath)
+		if err != nil {
+			results[filePath] = fmt.Sprintf("扫描错误: %v", err)
+		} else if isSafe {
+			results[filePath] = "ALL GOOD"
+		} else {
+			results[filePath] = "!!! VIRUS FOUND !!!"
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(results)
 }

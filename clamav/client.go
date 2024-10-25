@@ -12,7 +12,7 @@ import (
 
 // Scanner 接口定义了防病毒扫描器的行为
 type Scanner interface {
-	ScanFile(filePath string) (string, error)
+	ScanFile(filePath string) (bool, error)
 	GetVersion() (string, error)
 	Ping() error
 	Reload() error
@@ -30,34 +30,27 @@ func NewClient(address string) Scanner {
 	return &Client{address: address}
 }
 
-// ScanFile 扫描指定文件路径的文件
-func (c *Client) ScanFile(filePath string) (string, error) {
-	// 连接到ClamAV守护进程
-	conn, err := net.Dial("tcp", c.address)
+// ScanFile 扫描单个文件
+func (c *Client) ScanFile(filePath string) (bool, error) {
+	conn, err := net.DialTimeout("tcp", c.address, 10*time.Second)
 	if err != nil {
-		return "", fmt.Errorf("连接ClamAV失败: %v", err)
+		return false, fmt.Errorf("连接ClamAV失败: %v", err)
 	}
 	defer conn.Close()
-	fmt.Println("连接成功", filePath)
-	// 发送扫描命令
+
+	// 发送SCAN命令
 	_, err = fmt.Fprintf(conn, "SCAN %s\n", filePath)
 	if err != nil {
-		return "", fmt.Errorf("发送扫描命令失败: %v", err)
+		return false, fmt.Errorf("发送SCAN命令失败: %v", err)
 	}
 
 	// 读取扫描结果
-	scanner := bufio.NewScanner(conn)
-	scanner.Scan()
-	result := scanner.Text()
-
-	// 解析扫描结果
-	parts := strings.Split(result, ":")
-	if len(parts) < 2 {
-		return "", fmt.Errorf("无效的扫描结果: %s", result)
+	response, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		return false, fmt.Errorf("读取扫描结果失败: %v", err)
 	}
 
-	status := strings.TrimSpace(parts[1])
-	return status, nil
+	return strings.Contains(response, "OK") && !strings.Contains(response, "FOUND"), nil
 }
 
 // GetVersion 获取ClamAV版本信息

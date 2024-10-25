@@ -70,12 +70,14 @@ func init() {
 	rootCmd.PersistentFlags().String("temp_dir", "/tmp", "临时文件目录")
 	rootCmd.PersistentFlags().String("port", "8080", "API服务器端口")
 	rootCmd.PersistentFlags().String("api_key_file", "./api_keys.txt", "API key 文件路径")
+	rootCmd.PersistentFlags().StringP("file-list", "f", "", "从指定文件读取要扫描的文件列表")
 
 	// 绑定命令行参数到viper
 	viper.BindPFlag("clamav_address", rootCmd.PersistentFlags().Lookup("clamav_address"))
 	viper.BindPFlag("temp_dir", rootCmd.PersistentFlags().Lookup("temp_dir"))
 	viper.BindPFlag("port", rootCmd.PersistentFlags().Lookup("port"))
 	viper.BindPFlag("api_key_file", rootCmd.PersistentFlags().Lookup("api_key_file"))
+	viper.BindPFlag("file_list", rootCmd.PersistentFlags().Lookup("file-list"))
 
 	// 添加子命令
 	apiKeyCmd.AddCommand(addAPIKeyCmd)
@@ -127,6 +129,13 @@ func runServer(cmd *cobra.Command, args []string) {
 
 	// 设置路由
 	http.HandleFunc("/scan", api.LoggingMiddleware(api.AuthMiddleware(handler.ScanHandler, apiKeyManager)))
+	http.HandleFunc("/scan-file-list", api.LoggingMiddleware(api.AuthMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			http.Error(w, "只允许 POST 请求", http.StatusMethodNotAllowed)
+			return
+		}
+		handler.ScanFileListHandler(w, r)
+	}, apiKeyManager)))
 	http.HandleFunc("/version", api.LoggingMiddleware(api.AuthMiddleware(handler.VersionHandler, apiKeyManager)))
 	http.HandleFunc("/ping", api.LoggingMiddleware(api.AuthMiddleware(handler.PingHandler, apiKeyManager)))
 	http.HandleFunc("/reload", api.LoggingMiddleware(api.AuthMiddleware(handler.ReloadHandler, apiKeyManager)))
