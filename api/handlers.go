@@ -148,23 +148,6 @@ func (h *Handler) ReloadHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("病毒数据库已重新加载"))
 }
 
-// StatsHandler 处理获取统计信息请求
-func (h *Handler) StatsHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "只支持GET方法", http.StatusMethodNotAllowed)
-		return
-	}
-
-	stats, err := h.scanner.GetStats()
-	if err != nil {
-		http.Error(w, fmt.Sprintf("获取统计信息失败: %v", err), http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "text/plain")
-	w.Write([]byte(stats))
-}
-
 // StreamScanHandler 处理流式扫描请求
 func (h *Handler) StreamScanHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {

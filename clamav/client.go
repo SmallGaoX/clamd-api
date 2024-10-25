@@ -16,7 +16,6 @@ type Scanner interface {
 	Ping() error
 	Reload() error
 	Shutdown() error
-	GetStats() (string, error)
 	ScanStream(data io.Reader) (string, error)
 	MultiScan(filePaths []string) (map[string]string, error)
 }
@@ -143,32 +142,6 @@ func (c *Client) Shutdown() error {
 	}
 
 	return nil
-}
-
-// GetStats 获取clamd的内部统计信息
-func (c *Client) GetStats() (string, error) {
-	conn, err := net.Dial("tcp", c.address)
-	if err != nil {
-		return "", fmt.Errorf("连接ClamAV失败: %v", err)
-	}
-	defer conn.Close()
-
-	_, err = fmt.Fprintf(conn, "STATS\n")
-	if err != nil {
-		return "", fmt.Errorf("发送STATS命令失败: %v", err)
-	}
-
-	var stats strings.Builder
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "END" {
-			break
-		}
-		stats.WriteString(line + "\n")
-	}
-
-	return stats.String(), nil
 }
 
 // ScanStream 扫描通过网络流传输的数据

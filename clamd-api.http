@@ -1,32 +1,32 @@
 ### GET request to clamd-api server 使用API key认证
 GET http://localhost:8080/ping
 Content-Type: application/json
-X-API-Key: 8IzsbPX8KJec07VNxsaj54LxP59hsDfZHXvtlAlMHsM=
+X-API-Key: Esd0LKwbQnD2YgAgLfv53SOYc7gKIia3txshjJpH-Ds=
 
 ### POST request to clamd-api server 使用API key认证
 GET http://localhost:8080/version
 Content-Type: application/json
-X-API-Key: 8IzsbPX8KJec07VNxsaj54LxP59hsDfZHXvtlAlMHsM=
+X-API-Key: Esd0LKwbQnD2YgAgLfv53SOYc7gKIia3txshjJpH-Ds=
 
 ### POST request to clamd-api server 使用API key认证
 GET http://localhost:8080/reload
 Content-Type: application/json
-X-API-Key: 8IzsbPX8KJec07VNxsaj54LxP59hsDfZHXvtlAlMHsM=
+X-API-Key: Esd0LKwbQnD2YgAgLfv53SOYc7gKIia3txshjJpH-Ds=
 
 
 ### POST request to clamd-api server 使用API key认证
 GET http://localhost:8080/stats
 Content-Type: application/json
-X-API-Key: 8IzsbPX8KJec07VNxsaj54LxP59hsDfZHXvtlAlMHsM=
+X-API-Key: Esd0LKwbQnD2YgAgLfv53SOYc7gKIia3txshjJpH-Ds=
 
 
 ### POST request to clamd-api server 使用API key认证
 GET http://localhost:8080/stream-scan
 Content-Type: application/json
-X-API-Key: 8IzsbPX8KJec07VNxsaj54LxP59hsDfZHXvtlAlMHsM=
+X-API-Key: Esd0LKwbQnD2YgAgLfv53SOYc7gKIia3txshjJpH-Ds=
 
 
 ### POST request to clamd-api server 使用API key认证
 GET http://localhost:8080/multi-scan
 Content-Type: application/json
-X-API-Key: 8IzsbPX8KJec07VNxsaj54LxP59hsDfZHXvtlAlMHsM=
+X-API-Key: Esd0LKwbQnD2YgAgLfv53SOYc7gKIia3txshjJpH-Ds=
