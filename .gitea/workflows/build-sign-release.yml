@@ -1,0 +1,135 @@
+name: 多平台构建、签名和发布
+
+on:
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - 'main'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        goos: [linux,]
+        goarch: [amd64]
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') && github.ref_name == 'main' }}
+    runs-on: ubuntu-latest
+    outputs:
+      non_docs_changed: ${{ steps.changedlogs.outputs.changedLogs }}
+    steps:
+      - name: Dump GitHub context
+        env:
+          GITHUB_CONTEXT: ${{ toJson(github) }}
+        run: echo "$GITHUB_CONTEXT"
+
+      - name: 检出代码
+        uses: https://git.zuzhiyi.com/actions/checkout@v4
+        with:
+          fetch-tags: true
+          fetch-depth: 0
+
+      - name: 设置 Go
+        uses: https://git.zuzhiyi.com/actions/setup-go@v3
+        with:
+          go-version: '1.22'
+          check-latest: true
+          cache: true
+          cache-dependency-path: ./go.sum
+
+      - uses: https://git.zuzhiyi.com/actions/cache@v4
+        with:
+          path: |
+            /data/cache/go-build
+            /data/cache/go/pkg/mod
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+
+      - name: 构建
+        env:
+          GOPROXY: https://goproxy.cn,direct
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: |
+          set -x
+          # 获取当前标签版本
+          VERSION=$(git describe --tags --always)
+          COMMIT_SHA=$(git rev-parse --short HEAD)
+          BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S')
+          echo "当前版本: ${VERSION}"
+          echo "提交SHA: ${COMMIT_SHA}"
+          echo "构建时间: ${BUILD_TIME}"
+          
+          OUTPUT_NAME=clamd-api-${{ matrix.goos }}-${{ matrix.goarch }}
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            OUTPUT_NAME="${OUTPUT_NAME}.exe"
+          fi
+          
+          # 添加版本信息到构建参数
+          go build -v -ldflags="-X 'github.com/SmallGaoX/clamd-api/version.Version=${VERSION}' -X 'github.com/SmallGaoX/clamd-api/version.CommitSHA=${COMMIT_SHA}' -X 'github.com/SmallGaoX/clamd-api/version.BuildTime=${BUILD_TIME}'" -o bin/${OUTPUT_NAME} ./main.go
+          ls -la
+
+
+      - name: 生成签名
+        run: |
+          set -x
+          cd bin/
+          OUTPUT_NAME=clamd-api-${{ matrix.goos }}-${{ matrix.goarch }}
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            OUTPUT_NAME="${OUTPUT_NAME}.exe"
+          fi
+          sha256sum ${OUTPUT_NAME} > ${OUTPUT_NAME}.sha256
+          cd ..
+          ls -la bin/
+
+      - name: changed logs
+        id: changedlogs
+        run: |
+          set -x
+          # 获取当前标签
+          current_tag=$(git describe --tags --abbrev=0)
+          echo "当前标签: $current_tag"
+          
+          # 获取所有以 "v"开头的标签，按版本排序
+          all_tags=$(git tag --sort=-v:refname | grep -E '^v')
+          
+          # 查找当前标签的前一个标签
+          previous_tag=""
+          found_current=false
+          for tag in $all_tags; do
+            if [ "$found_current" = true ]; then
+              previous_tag=$tag
+              break
+            fi
+            if [ "$tag" = "$current_tag" ]; then
+              found_current=true
+            fi
+          done
+          
+          echo "上一个标签: $previous_tag"
+          
+          # 如果没有找到前一个标签，使用第一个提交
+          if [ -z "$previous_tag" ]; then
+            previous_tag=$(git rev-list --max-parents=0 HEAD)
+            echo "未找到上一个标签，使用第一个提交: $previous_tag"
+          fi
+          
+          # 获取两个标签之间的提交日志，只包含以 "v" 开头的标签
+          changedLogs=$(git log --pretty=format:"提交: %h%n作者: %an%n日期: %ad%n%n%B%n----------------------------------------" --date=format:"%Y-%m-%d %H:%M:%S" --reverse $previous_tag..$current_tag)
+          echo "从 $previous_tag 到 $current_tag 的变更:"
+          echo "$changedLogs"
+          echo "changedLogs<<EOF" >> $GITHUB_OUTPUT
+          echo "$changedLogs" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+      - name: 版本发布
+        id: use-go-action
+        uses: https://git.zuzhiyi.com/actions/release-action@main
+        with:
+          files: |-
+            bin/**
+          api_key: '${{secrets.RELEASE_TOKEN}}' # f3717304721302d7ac52e17f30197d85fa1ed472
+          body: |
+            此版本中的更改:
+            ${{ steps.changedlogs.outputs.changedLogs }}

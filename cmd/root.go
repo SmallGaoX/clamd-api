@@ -6,8 +6,10 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"sort"
 
+	"github.com/SmallGaoX/clamd-api/version"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 
@@ -64,6 +66,18 @@ var listAPIKeysCmd = &cobra.Command{
 	Run:   listAPIKeys,
 }
 
+var versionCmd = &cobra.Command{
+	Use:   "version",
+	Short: "打印版本信息",
+	Run: func(cmd *cobra.Command, args []string) {
+		fmt.Printf("版本：%s\n", version.Version)
+		fmt.Printf("提交：%s\n", version.CommitSHA)
+		fmt.Printf("构建时间：%s\n", version.BuildTime)
+		fmt.Printf("Go版本：%s\n", runtime.Version())
+		fmt.Printf("操作系统/架构：%s/%s\n", runtime.GOOS, runtime.GOARCH)
+	},
+}
+
 func initLogger() {
 	cfg, err := config.LoadConfig()
 	if err != nil {
@@ -113,6 +127,7 @@ func init() {
 	apiKeyCmd.AddCommand(addAPIKeyCmd, delAPIKeyCmd, listAPIKeysCmd)
 
 	rootCmd.AddCommand(apiKeyCmd)
+	rootCmd.AddCommand(versionCmd)
 }
 
 // initConfig 读取配置文件和环境变量
