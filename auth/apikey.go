@@ -31,6 +31,14 @@ func NewAPIKeyManager(file string) (*APIKeyManager, error) {
 		file:      file,
 	}
 
+	// 检查文件是否存在，如果不存在则创建
+	if _, err := os.Stat(file); os.IsNotExist(err) {
+		_, err := os.Create(file)
+		if err != nil {
+			return nil, fmt.Errorf("创建 API keys 文件失败: %v", err)
+		}
+	}
+
 	err := manager.loadAPIKeys()
 	if err != nil {
 		return nil, err
@@ -47,6 +55,12 @@ func (m *APIKeyManager) loadAPIKeys() error {
 	fileInfo, err := os.Stat(m.file)
 	if err != nil {
 		return err
+	}
+
+	if fileInfo.Size() == 0 {
+		// 文件为空，不需要加载任何内容
+		m.lastModTime = fileInfo.ModTime()
+		return nil
 	}
 
 	if fileInfo.ModTime() == m.lastModTime {
@@ -129,25 +143,40 @@ func (m *APIKeyManager) AddAPIKey(apiKey, name string) error {
 	return err
 }
 
-// RemoveAPIKey 删除指定的 API key
+// RemoveAPIKey 通过名称删除 API key
 func (m *APIKeyManager) RemoveAPIKey(name string) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
+	// 检查是否需要重新加载
+	if err := m.checkAndReload(); err != nil {
+		return fmt.Errorf("重新加载 API keys 失败: %v", err)
+	}
+
 	encryptedKey, exists := m.nameToKey[name]
 	if !exists {
-		return errors.New("API key 名称不存在")
+		return fmt.Errorf("未找到名称为 '%s' 的 API key", name)
 	}
 
 	delete(m.apiKeys, encryptedKey)
 	delete(m.nameToKey, name)
 
-	err := m.rewriteAPIKeysFile()
+	// 立即保存更改
+	return m.saveAPIKeys()
+}
+
+// 添加一个新的方法来检查是否需要重新加载
+func (m *APIKeyManager) checkAndReload() error {
+	fileInfo, err := os.Stat(m.file)
 	if err != nil {
 		return err
 	}
 
-	return m.reloadAPIKeys()
+	if fileInfo.ModTime() != m.lastModTime {
+		return m.loadAPIKeys()
+	}
+
+	return nil
 }
 
 // rewriteAPIKeysFile 重写 API keys 文件
@@ -260,4 +289,27 @@ func (m *APIKeyManager) DebugPrintKeys() {
 	for encryptedKey, name := range m.apiKeys {
 		fmt.Printf("加密的: %s, 名称: %s\n", encryptedKey, name)
 	}
+}
+
+// GetFilePath 返回 API key 文件的路径
+func (m *APIKeyManager) GetFilePath() string {
+	return m.file
+}
+
+// saveAPIKeys 保存 API keys
+func (m *APIKeyManager) saveAPIKeys() error {
+	file, err := os.Create(m.file)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	for encryptedKey, name := range m.apiKeys {
+		_, err := fmt.Fprintf(file, "%s %s\n", encryptedKey, name)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

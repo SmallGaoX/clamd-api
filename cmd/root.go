@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sort"
 
 	"github.com/spf13/cobra"
@@ -18,6 +20,7 @@ import (
 var (
 	cfgFile       string
 	apiKeyManager *auth.APIKeyManager
+	executableDir string
 )
 
 // rootCmd 表示基本命令
@@ -32,7 +35,7 @@ var rootCmd = &cobra.Command{
 var apiKeyCmd = &cobra.Command{
 	Use:   "apikey",
 	Short: "管理 API keys",
-	Long:  `添加、删除、列出 API keys。`,
+	Long:  `添加、删除、列出 API keys。使用 'add' 添加新的 key，'del' 删除已有的 key，'list' 列出所有 key。`,
 }
 
 // addAPIKeyCmd 表示添加API key的命令
@@ -44,13 +47,13 @@ var addAPIKeyCmd = &cobra.Command{
 	Run:   addAPIKey,
 }
 
-// removeAPIKeyCmd 表示删除API key的命令
-var removeAPIKeyCmd = &cobra.Command{
-	Use:   "remove <name>",
+// delAPIKeyCmd 表示删除API key的命令
+var delAPIKeyCmd = &cobra.Command{
+	Use:   "del <name>",
 	Short: "删除指定名称的 API key",
-	Long:  `通过名称从系统中删除指定的 API key。`,
+	Long:  `通过名称从系统删除指定的 API key。`,
 	Args:  cobra.ExactArgs(1),
-	Run:   removeAPIKey,
+	Run:   delAPIKey,
 }
 
 // listAPIKeysCmd 表示列出所有API key的命令
@@ -64,12 +67,19 @@ var listAPIKeysCmd = &cobra.Command{
 func init() {
 	cobra.OnInitialize(initConfig, initAPIKeyManager)
 
+	// 获取可执行文件所在目录
+	ex, err := os.Executable()
+	if err != nil {
+		log.Fatalf("获取可执行文件路径失败: %v", err)
+	}
+	executableDir = filepath.Dir(ex)
+
 	// 设置命令行参数
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "配置文件路径 (默认为 ./config.yaml)")
 	rootCmd.PersistentFlags().String("clamav_address", "localhost:3310", "ClamAV服务器地址")
 	rootCmd.PersistentFlags().String("temp_dir", "/tmp", "临时文件目录")
 	rootCmd.PersistentFlags().String("port", "8080", "API服务器端口")
-	rootCmd.PersistentFlags().String("api_key_file", "./api_keys.txt", "API key 文件路径")
+	rootCmd.PersistentFlags().String("api_key_file", "api_keys.txt", "API key 文件路径")
 	rootCmd.PersistentFlags().StringP("file-list", "f", "", "从指定文件读取要扫描的文件列表")
 
 	// 绑定命令行参数到viper
@@ -80,9 +90,7 @@ func init() {
 	viper.BindPFlag("file_list", rootCmd.PersistentFlags().Lookup("file-list"))
 
 	// 添加子命令
-	apiKeyCmd.AddCommand(addAPIKeyCmd)
-	apiKeyCmd.AddCommand(removeAPIKeyCmd)
-	apiKeyCmd.AddCommand(listAPIKeysCmd)
+	apiKeyCmd.AddCommand(addAPIKeyCmd, delAPIKeyCmd, listAPIKeysCmd)
 
 	rootCmd.AddCommand(apiKeyCmd)
 }
@@ -105,12 +113,13 @@ func initConfig() {
 
 // initAPIKeyManager 初始化API key管理器
 func initAPIKeyManager() {
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		log.Fatalf("加载配置失败: %v", err)
+	apiKeyFilePath := viper.GetString("api_key_file")
+	if !filepath.IsAbs(apiKeyFilePath) {
+		apiKeyFilePath = filepath.Join(executableDir, apiKeyFilePath)
 	}
 
-	apiKeyManager, err = auth.NewAPIKeyManager(cfg.APIKeyFile)
+	var err error
+	apiKeyManager, err = auth.NewAPIKeyManager(apiKeyFilePath)
 	if err != nil {
 		log.Fatalf("创建 API key 管理器失败: %v", err)
 	}
@@ -158,11 +167,14 @@ func addAPIKey(cmd *cobra.Command, args []string) {
 
 	fmt.Printf("成功添加 API key:\n名称: %s\nAPI Key: %s\n\n", name, apiKey)
 	fmt.Println("请保存此 API key，因为它不会再次显示。")
+	fmt.Printf("API keys 文件位置: %s\n", apiKeyManager.GetFilePath())
 }
 
-// removeAPIKey 删除指定的API key
-func removeAPIKey(cmd *cobra.Command, args []string) {
+// delAPIKey 删除指定的API key
+func delAPIKey(cmd *cobra.Command, args []string) {
 	name := args[0]
+
+	fmt.Printf("正在删除名称为 '%s' 的 API key...\n", name)
 
 	err := apiKeyManager.RemoveAPIKey(name)
 	if err != nil {

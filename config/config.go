@@ -20,7 +20,7 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("clamav_address", "10.10.101.50:3310")
 	viper.SetDefault("temp_dir", "/tmp")
 	viper.SetDefault("port", "8080")
-	viper.SetDefault("api_key_file", "./api_keys.txt")
+	viper.SetDefault("api_key_file", "api_keys.txt") // 修改这里，使用相对路径
 
 	// 读取配置文件
 	viper.SetConfigName("config")
