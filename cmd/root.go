@@ -130,8 +130,6 @@ func runServer(cmd *cobra.Command, args []string) {
 	http.HandleFunc("/version", api.LoggingMiddleware(api.AuthMiddleware(handler.VersionHandler, apiKeyManager)))
 	http.HandleFunc("/ping", api.LoggingMiddleware(api.AuthMiddleware(handler.PingHandler, apiKeyManager)))
 	http.HandleFunc("/reload", api.LoggingMiddleware(api.AuthMiddleware(handler.ReloadHandler, apiKeyManager)))
-	http.HandleFunc("/stream-scan", api.LoggingMiddleware(api.AuthMiddleware(handler.StreamScanHandler, apiKeyManager)))
-	http.HandleFunc("/multi-scan", api.LoggingMiddleware(api.AuthMiddleware(handler.MultiScanHandler, apiKeyManager)))
 
 	log.Println("已加载的 API Keys:")
 	apiKeyManager.DebugPrintKeys()

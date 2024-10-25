@@ -2,9 +2,7 @@ package clamav
 
 import (
 	"bufio"
-	"encoding/binary"
 	"fmt"
-	"io"
 	"net"
 	"strings"
 )
@@ -16,8 +14,6 @@ type Scanner interface {
 	Ping() error
 	Reload() error
 	Shutdown() error
-	ScanStream(data io.Reader) (string, error)
-	MultiScan(filePaths []string) (map[string]string, error)
 }
 
 // Client 结构体表示ClamAV客户端
@@ -142,78 +138,4 @@ func (c *Client) Shutdown() error {
 	}
 
 	return nil
-}
-
-// ScanStream 扫描通过网络流传输的数据
-func (c *Client) ScanStream(data io.Reader) (string, error) {
-	conn, err := net.Dial("tcp", c.address)
-	if err != nil {
-		return "", fmt.Errorf("连接ClamAV失败: %v", err)
-	}
-	defer conn.Close()
-
-	_, err = fmt.Fprintf(conn, "INSTREAM\n")
-	if err != nil {
-		return "", fmt.Errorf("发送INSTREAM命令失败: %v", err)
-	}
-
-	buf := make([]byte, 8192)
-	for {
-		n, err := data.Read(buf)
-		if err != nil && err != io.EOF {
-			return "", fmt.Errorf("读取数据失败: %v", err)
-		}
-		if n == 0 {
-			break
-		}
-
-		size := uint32(n)
-		err = binary.Write(conn, binary.BigEndian, size)
-		if err != nil {
-			return "", fmt.Errorf("发送数据大小失败: %v", err)
-		}
-
-		_, err = conn.Write(buf[:n])
-		if err != nil {
-			return "", fmt.Errorf("发送数据失败: %v", err)
-		}
-	}
-
-	// 发送结束标记
-	err = binary.Write(conn, binary.BigEndian, uint32(0))
-	if err != nil {
-		return "", fmt.Errorf("发送结束标记失败: %v", err)
-	}
-
-	scanner := bufio.NewScanner(conn)
-	scanner.Scan()
-	result := scanner.Text()
-
-	return result, nil
-}
-
-// MultiScan 并行扫描多个文件
-func (c *Client) MultiScan(filePaths []string) (map[string]string, error) {
-	conn, err := net.Dial("tcp", c.address)
-	if err != nil {
-		return nil, fmt.Errorf("连接ClamAV失败: %v", err)
-	}
-	defer conn.Close()
-
-	_, err = fmt.Fprintf(conn, "MULTISCAN %s\n", strings.Join(filePaths, " "))
-	if err != nil {
-		return nil, fmt.Errorf("发送MULTISCAN命令失败: %v", err)
-	}
-
-	results := make(map[string]string)
-	scanner := bufio.NewScanner(conn)
-	for scanner.Scan() {
-		line := scanner.Text()
-		parts := strings.SplitN(line, ":", 2)
-		if len(parts) == 2 {
-			results[parts[0]] = strings.TrimSpace(parts[1])
-		}
-	}
-
-	return results, nil
 }
