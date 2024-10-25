@@ -9,7 +9,7 @@
 3. ClamAV 版本查询
 4. ClamAV 服务器 Ping 测试
 5. ClamAV 病毒数据库重新加载
-6. API Key 认证
+6. API Key 认证和管理
 7. 日志记录
 
 ## 项目结构
@@ -37,7 +37,7 @@
 2. **ClamAV 客户端**：通过 TCP 连接与 ClamAV 守护进程通信。
 3. **配置管理**：使用 `viper` 库加载和管理配置。
 4. **命令行接口**：使用 `cobra` 库实现命令行功能。
-5. **API Key 管理**：实现了基于文件的 API Key 存储和验证机制。
+5. **API Key 管理**：实现了基于文件的 API Key 存储和验证机制，支持加密存储。
 6. **中间件**：实现了日志记录和 API Key 认证中间件。
 
 ## 使用方法
@@ -67,7 +67,7 @@
 clamav_address: "localhost:3310"
 temp_dir: "/tmp"
 port: "8080"
-api_key_file: "./api_keys.txt"
+api_key_file: "api_keys.txt"
 ```
 
 ### 运行
@@ -121,7 +121,7 @@ api_key_file: "./api_keys.txt"
 
 2. 删除 API Key：
    ```
-   ./clamd-api apikey remove <name>
+   ./clamd-api apikey del <name>
    ```
 
 3. 列出所有 API Key：
@@ -132,6 +132,7 @@ api_key_file: "./api_keys.txt"
 ## 注意事项
 
 - 确保 ClamAV 守护进程正在运行并可访问。
+- API Key 文件默认位于程序所在目录，可通过配置文件或命令行参数修改。
 - 妥善保管 API Key，不要泄露给未授权的用户。
 - 定期更新 ClamAV 病毒数据库以确保最新的病毒检测能力。
 
