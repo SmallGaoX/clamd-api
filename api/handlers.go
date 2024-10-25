@@ -32,45 +32,28 @@ func NewHandler(scanner clamav.Scanner, cfg *config.Config, apiKeyManager *auth.
 
 // ScanHandler 处理文件扫描请求
 func (h *Handler) ScanHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "只支持POST方法", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 解析multipart表单
-	err := r.ParseMultipartForm(10 << 20) // 限制上传文件大小为10MB
-	if err != nil {
-		http.Error(w, "解析表单失败", http.StatusBadRequest)
-		return
-	}
-
 	// 获取上传的文件
-	file, header, err := r.FormFile("file")
+	file, _, err := r.FormFile("file")
 	if err != nil {
 		http.Error(w, "获取上传文件失败", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	// 保存文件到临时目录
-	tempFile, err := saveUploadedFile(header, h.config.TempDir)
-	if err != nil {
-		http.Error(w, fmt.Sprintf("保存文件失败: %v", err), http.StatusInternalServerError)
-		return
-	}
-	defer os.Remove(tempFile) // 扫描完成后删除临时文件
-
 	// 扫描文件
-	result, err := h.scanner.ScanFile(tempFile)
+	isSafe, err := h.scanner.ScanStream(file)
 	if err != nil {
 		http.Error(w, fmt.Sprintf("扫描文件失败: %v", err), http.StatusInternalServerError)
 		return
 	}
 
 	// 返回扫描结果
-	response := map[string]string{"result": result}
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	w.Header().Set("Content-Type", "text/plain")
+	if isSafe {
+		w.Write([]byte("ALL GOOD"))
+	} else {
+		w.Write([]byte("!!! VIRUS FOUND !!!"))
+	}
 }
 
 // saveUploadedFile 保存上传的文件到指定目录

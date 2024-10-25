@@ -2,9 +2,12 @@ package clamav
 
 import (
 	"bufio"
+	"encoding/binary"
 	"fmt"
+	"io"
 	"net"
 	"strings"
+	"time"
 )
 
 // Scanner 接口定义了防病毒扫描器的行为
@@ -14,6 +17,7 @@ type Scanner interface {
 	Ping() error
 	Reload() error
 	Shutdown() error
+	ScanStream(reader io.Reader) (bool, error)
 }
 
 // Client 结构体表示ClamAV客户端
@@ -34,7 +38,7 @@ func (c *Client) ScanFile(filePath string) (string, error) {
 		return "", fmt.Errorf("连接ClamAV失败: %v", err)
 	}
 	defer conn.Close()
-
+	fmt.Println("连接成功", filePath)
 	// 发送扫描命令
 	_, err = fmt.Fprintf(conn, "SCAN %s\n", filePath)
 	if err != nil {
@@ -138,4 +142,61 @@ func (c *Client) Shutdown() error {
 	}
 
 	return nil
+}
+
+// ScanStream 扫描文件流
+func (c *Client) ScanStream(reader io.Reader) (bool, error) {
+	conn, err := net.DialTimeout("tcp", c.address, 10*time.Second)
+	if err != nil {
+		return false, fmt.Errorf("连接ClamAV失败: %v", err)
+	}
+	defer conn.Close()
+
+	// 设置超时
+	err = conn.SetDeadline(time.Now().Add(30 * time.Second))
+	if err != nil {
+		return false, fmt.Errorf("设置超时失败: %v", err)
+	}
+
+	// 发送INSTREAM命令
+	_, err = conn.Write([]byte("zINSTREAM\x00"))
+	if err != nil {
+		return false, fmt.Errorf("发送INSTREAM命令失败: %v", err)
+	}
+
+	// 发送文件内容
+	buf := make([]byte, 2048)
+	for {
+		n, err := reader.Read(buf)
+		if err != nil && err != io.EOF {
+			return false, fmt.Errorf("读取文件流失败: %v", err)
+		}
+		if n == 0 {
+			break
+		}
+
+		err = binary.Write(conn, binary.BigEndian, uint32(n))
+		if err != nil {
+			return false, fmt.Errorf("发送数据大小失败: %v", err)
+		}
+
+		_, err = conn.Write(buf[:n])
+		if err != nil {
+			return false, fmt.Errorf("发送数据失败: %v", err)
+		}
+	}
+
+	// 发送结束标记
+	err = binary.Write(conn, binary.BigEndian, uint32(0))
+	if err != nil {
+		return false, fmt.Errorf("发送结束标记失败: %v", err)
+	}
+
+	// 读取扫描结果
+	response, err := bufio.NewReader(conn).ReadString('\x00')
+	if err != nil {
+		return false, fmt.Errorf("读取扫描结果失败: %v", err)
+	}
+
+	return strings.Contains(response, "OK") && !strings.Contains(response, "FOUND"), nil
 }
