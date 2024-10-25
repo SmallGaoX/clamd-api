@@ -123,6 +123,9 @@ func runServer(cmd *cobra.Command, args []string) {
 	http.HandleFunc("/stream-scan", api.LoggingMiddleware(api.AuthMiddleware(handler.StreamScanHandler, apiKeyManager)))
 	http.HandleFunc("/multi-scan", api.LoggingMiddleware(api.AuthMiddleware(handler.MultiScanHandler, apiKeyManager)))
 
+	log.Println("Loaded API Keys:")
+	apiKeyManager.DebugPrintKeys()
+
 	// 启动服务器
 	log.Printf("启动服务器,监听端口 %s...", cfg.Port)
 	log.Fatal(http.ListenAndServe(":"+cfg.Port, nil))

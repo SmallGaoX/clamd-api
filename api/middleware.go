@@ -27,6 +27,10 @@ func AuthMiddleware(next http.HandlerFunc, apiKeyManager *auth.APIKeyManager) ht
 			return
 		}
 
+		// 添加调试日志
+		log.Printf("Received API Key: %s", apiKey)
+		apiKeyManager.DebugPrintKeys()
+
 		if !apiKeyManager.IsValidAPIKey(apiKey) {
 			http.Error(w, "无效的 API key", http.StatusUnauthorized)
 			return

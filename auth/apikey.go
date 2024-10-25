@@ -195,8 +195,7 @@ func (m *APIKeyManager) GetAllAPIKeys() (map[string]string, error) {
 // GenerateAPIKey 生成一个随机的 API key
 func GenerateAPIKey() (string, error) {
 	bytes := make([]byte, 32) // 256 位
-	_, err := rand.Read(bytes)
-	if err != nil {
+	if _, err := rand.Read(bytes); err != nil {
 		return "", err
 	}
 	return base64.URLEncoding.EncodeToString(bytes), nil
@@ -224,7 +223,7 @@ func obfuscateAPIKey(encryptedKey string) string {
 	return encryptedKey[:4] + "..." + encryptedKey[len(encryptedKey)-4:]
 }
 
-// 添加这个辅助函数来打印调试信息
+// DebugPrintKeys 添加这个调试方法
 func (m *APIKeyManager) DebugPrintKeys() {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()

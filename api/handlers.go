@@ -22,10 +22,10 @@ type Handler struct {
 }
 
 // NewHandler 创建一个新的Handler实例
-func NewHandler(scanner clamav.Scanner, config *config.Config, apiKeyManager *auth.APIKeyManager) *Handler {
+func NewHandler(scanner clamav.Scanner, cfg *config.Config, apiKeyManager *auth.APIKeyManager) *Handler {
 	return &Handler{
 		scanner:       scanner,
-		config:        config,
+		config:        cfg,
 		apiKeyManager: apiKeyManager,
 	}
 }
