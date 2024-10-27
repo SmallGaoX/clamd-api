@@ -12,12 +12,12 @@ import (
 
 // Scanner 接口定义了防病毒扫描器的行为
 type Scanner interface {
-	ScanFile(filePath string) (bool, error)
+	ScanFile(filePath string) (string, error)
 	GetVersion() (string, error)
 	Ping() error
 	Reload() error
 	Shutdown() error
-	ScanStream(reader io.Reader) (bool, error)
+	ScanStream(reader io.Reader) (string, error)
 }
 
 // Client 结构体表示ClamAV客户端
@@ -115,46 +115,46 @@ func (c *Client) Shutdown() error {
 }
 
 // ScanFile 扫描单个文件
-func (c *Client) ScanFile(filePath string) (bool, error) {
+func (c *Client) ScanFile(filePath string) (string, error) {
 	conn, err := net.DialTimeout("tcp", c.address, 10*time.Second)
 	if err != nil {
-		return false, fmt.Errorf("连接ClamAV失败: %v", err)
+		return "", fmt.Errorf("连接ClamAV失败: %v", err)
 	}
 	defer conn.Close()
 
 	// 发送SCAN命令
 	_, err = fmt.Fprintf(conn, "SCAN %s\n", filePath)
 	if err != nil {
-		return false, fmt.Errorf("发送SCAN命令失败: %v", err)
+		return "", fmt.Errorf("发送SCAN命令失败: %v", err)
 	}
 
 	// 读取扫描结果
 	response, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {
-		return false, fmt.Errorf("读取扫描结果失败: %v", err)
+		return "", fmt.Errorf("读取扫描结果失败: %v", err)
 	}
 
-	return strings.Contains(response, "OK") && !strings.Contains(response, "FOUND"), nil
+	return strings.TrimSpace(response), nil
 }
 
 // ScanStream 扫描文件流
-func (c *Client) ScanStream(reader io.Reader) (bool, error) {
+func (c *Client) ScanStream(reader io.Reader) (string, error) {
 	conn, err := net.DialTimeout("tcp", c.address, 10*time.Second)
 	if err != nil {
-		return false, fmt.Errorf("连接ClamAV失败: %v", err)
+		return "", fmt.Errorf("连接ClamAV失败: %v", err)
 	}
 	defer conn.Close()
 
 	// 设置超时
 	err = conn.SetDeadline(time.Now().Add(30 * time.Second))
 	if err != nil {
-		return false, fmt.Errorf("设置超时失败: %v", err)
+		return "", fmt.Errorf("设置超时失败: %v", err)
 	}
 
 	// 发送INSTREAM命令
 	_, err = conn.Write([]byte("zINSTREAM\x00"))
 	if err != nil {
-		return false, fmt.Errorf("发送INSTREAM命令失败: %v", err)
+		return "", fmt.Errorf("发送INSTREAM命令失败: %v", err)
 	}
 
 	// 发送文件内容
@@ -162,7 +162,7 @@ func (c *Client) ScanStream(reader io.Reader) (bool, error) {
 	for {
 		n, err := reader.Read(buf)
 		if err != nil && err != io.EOF {
-			return false, fmt.Errorf("读取文件流失败: %v", err)
+			return "", fmt.Errorf("读取文件流失败: %v", err)
 		}
 		if n == 0 {
 			break
@@ -170,26 +170,26 @@ func (c *Client) ScanStream(reader io.Reader) (bool, error) {
 
 		err = binary.Write(conn, binary.BigEndian, uint32(n))
 		if err != nil {
-			return false, fmt.Errorf("发送数据大小失败: %v", err)
+			return "", fmt.Errorf("发送数据大小失败: %v", err)
 		}
 
 		_, err = conn.Write(buf[:n])
 		if err != nil {
-			return false, fmt.Errorf("发送数据失败: %v", err)
+			return "", fmt.Errorf("发送数据失败: %v", err)
 		}
 	}
 
 	// 发送结束标记
 	err = binary.Write(conn, binary.BigEndian, uint32(0))
 	if err != nil {
-		return false, fmt.Errorf("发送结束标记失败: %v", err)
+		return "", fmt.Errorf("发送结束标记失败: %v", err)
 	}
 
 	// 读取扫描结果
 	response, err := bufio.NewReader(conn).ReadString('\x00')
 	if err != nil {
-		return false, fmt.Errorf("读取扫描结果失败: %v", err)
+		return "", fmt.Errorf("读取扫描结果失败: %v", err)
 	}
 
-	return strings.Contains(response, "OK") && !strings.Contains(response, "FOUND"), nil
+	return strings.TrimSpace(strings.TrimSuffix(response, "\x00")), nil
 }

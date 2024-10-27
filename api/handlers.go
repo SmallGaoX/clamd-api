@@ -82,6 +82,13 @@ func (h *Handler) ReloadHandler(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("病毒数据库已重新加载"))
 }
 
+// ScanResult 结构体表示单个文件的扫描结果
+type ScanResult struct {
+	FileName string `json:"fileName"`
+	IsSafe   bool   `json:"isSafe"`
+	Threat   string `json:"threat"`
+}
+
 // ScanFileHandler 处理文件扫描请求（支持单个或多个文件）
 func (h *Handler) ScanFileHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -89,46 +96,45 @@ func (h *Handler) ScanFileHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 解析多部分表单数据
 	err := r.ParseMultipartForm(32 << 20) // 32 MB
 	if err != nil {
 		http.Error(w, "解析表单数据失败", http.StatusBadRequest)
 		return
 	}
 
-	results := make(map[string]string)
+	var results []ScanResult
 
-	// 遍历所有上传的文件
 	for _, fileHeaders := range r.MultipartForm.File {
 		for _, fileHeader := range fileHeaders {
 			file, err := fileHeader.Open()
 			if err != nil {
-				results[fileHeader.Filename] = fmt.Sprintf("打开文件失败: %v", err)
+				results = append(results, ScanResult{
+					FileName: fileHeader.Filename,
+					IsSafe:   false,
+					Threat:   fmt.Sprintf("打开文件失败: %v", err),
+				})
 				continue
 			}
 			defer file.Close()
 
-			isSafe, err := h.scanner.ScanStream(file)
+			scanResult, err := h.scanner.ScanStream(file)
 			if err != nil {
-				results[fileHeader.Filename] = fmt.Sprintf("扫描错误: %v", err)
-			} else if isSafe {
-				results[fileHeader.Filename] = "SECURE"
+				results = append(results, ScanResult{
+					FileName: fileHeader.Filename,
+					IsSafe:   false,
+					Threat:   fmt.Sprintf("扫描错误: %v", err),
+				})
 			} else {
-				results[fileHeader.Filename] = "!!! THREAT !!!"
+				isSafe, threat := parseScanResult(scanResult)
+				results = append(results, ScanResult{
+					FileName: fileHeader.Filename,
+					IsSafe:   isSafe,
+					Threat:   threat,
+				})
 			}
 		}
 	}
 
-	// 如果只有一个文件，返回简单的文本响应
-	if len(results) == 1 {
-		for _, result := range results {
-			w.Header().Set("Content-Type", "text/plain")
-			w.Write([]byte(result))
-			return
-		}
-	}
-
-	// 如果有多个文件，返回 JSON 响应
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
 }
@@ -140,11 +146,9 @@ func (h *Handler) ScanStreamHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	results := make(map[string]string)
+	var results []ScanResult
 
-	// 检查是否是多部分表单数据
 	if strings.HasPrefix(r.Header.Get("Content-Type"), "multipart/form-data") {
-		// 处理多文件上传
 		err := r.ParseMultipartForm(32 << 20) // 32 MB
 		if err != nil {
 			http.Error(w, "解析表单数据失败", http.StatusBadRequest)
@@ -155,23 +159,33 @@ func (h *Handler) ScanStreamHandler(w http.ResponseWriter, r *http.Request) {
 			for _, fileHeader := range fileHeaders {
 				file, err := fileHeader.Open()
 				if err != nil {
-					results[fileHeader.Filename] = fmt.Sprintf("打开文件失败: %v", err)
+					results = append(results, ScanResult{
+						FileName: fileHeader.Filename,
+						IsSafe:   false,
+						Threat:   fmt.Sprintf("打开文件失败: %v", err),
+					})
 					continue
 				}
 				defer file.Close()
 
-				isSafe, err := h.scanner.ScanStream(file)
+				scanResult, err := h.scanner.ScanStream(file)
 				if err != nil {
-					results[fileHeader.Filename] = fmt.Sprintf("扫描错误: %v", err)
-				} else if isSafe {
-					results[fileHeader.Filename] = "SECURE"
+					results = append(results, ScanResult{
+						FileName: fileHeader.Filename,
+						IsSafe:   false,
+						Threat:   fmt.Sprintf("扫描错误: %v", err),
+					})
 				} else {
-					results[fileHeader.Filename] = "!!! THREAT !!!"
+					isSafe, threat := parseScanResult(scanResult)
+					results = append(results, ScanResult{
+						FileName: fileHeader.Filename,
+						IsSafe:   isSafe,
+						Threat:   threat,
+					})
 				}
 			}
 		}
 	} else {
-		// 处理文件路径列表
 		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			http.Error(w, "读取请求体失败", http.StatusBadRequest)
@@ -187,17 +201,40 @@ func (h *Handler) ScanStreamHandler(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 
-			isSafe, err := h.scanner.ScanFile(filePath)
+			scanResult, err := h.scanner.ScanFile(filePath)
 			if err != nil {
-				results[filePath] = fmt.Sprintf("扫描错误: %v", err)
-			} else if isSafe {
-				results[filePath] = "ALL GOOD"
+				results = append(results, ScanResult{
+					FileName: filePath,
+					IsSafe:   false,
+					Threat:   fmt.Sprintf("扫描错误: %v", err),
+				})
 			} else {
-				results[filePath] = "!!! VIRUS FOUND !!!"
+				isSafe, threat := parseScanResult(scanResult)
+				results = append(results, ScanResult{
+					FileName: filePath,
+					IsSafe:   isSafe,
+					Threat:   threat,
+				})
 			}
 		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(results)
+}
+
+// parseScanResult 解析扫描结果字符串
+func parseScanResult(result string) (bool, string) {
+	parts := strings.Split(result, ":")
+	if len(parts) < 2 {
+		return false, "解析扫描结果失败"
+	}
+
+	status := strings.TrimSpace(parts[len(parts)-1])
+	if status == "OK" {
+		return true, ""
+	}
+
+	threat := strings.TrimSpace(strings.TrimSuffix(status, "FOUND"))
+	return false, threat
 }
