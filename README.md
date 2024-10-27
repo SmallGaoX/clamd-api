@@ -11,6 +11,7 @@
 5. ClamAV 病毒数据库重新加载
 6. API Key 认证和管理
 7. 日志记录
+8. 版本信息查看
 
 ## 项目结构
 
@@ -27,6 +28,8 @@
 │   └── root.go        # 命令行接口
 ├── config/
 │   └── config.go      # 配置加载
+├── version/
+│   └── version.go     # 版本信息
 ├── main.go            # 程序入口
 └── README.md          # 项目文档
 ```
@@ -39,6 +42,7 @@
 4. **命令行接口**：使用 `cobra` 库实现命令行功能。
 5. **API Key 管理**：实现了基于文件的 API Key 存储和验证机制，支持加密存储。
 6. **中间件**：实现了日志记录和 API Key 认证中间件。
+7. **版本信息**：在构建时注入版本信息，可通过命令行查看。
 
 ## 使用方法
 
@@ -68,6 +72,7 @@ clamav_address: "localhost:3310"
 temp_dir: "/tmp"
 port: "8080"
 api_key_file: "api_keys.txt"
+log_file: "clamd-api.log"
 ```
 
 ### 运行
@@ -112,6 +117,25 @@ api_key_file: "api_keys.txt"
    Header: X-API-Key: <your-api-key>
    ```
 
+### API 响应格式
+
+扫描结果将以 JSON 数组的形式返回，每个元素包含以下字段：
+
+```json
+[
+    {
+        "fileName": "example.txt",
+        "isSafe": true,
+        "threat": ""
+    },
+    {
+        "fileName": "virus.exe",
+        "isSafe": false,
+        "threat": "Win.Trojan.Example-1"
+    }
+]
+```
+
 ### API Key 管理
 
 1. 添加 API Key：
@@ -129,6 +153,19 @@ api_key_file: "api_keys.txt"
    ./clamd-api apikey list
    ```
 
+### 版本信息
+
+查看应用程序版本信息：
+
+```
+./clamd-api version
+```
+
+## 日志记录
+
+应用程序会将日志记录到文件中。默认的日志文件名为 `clamd-api.log`，位于程序运行的当前目录。
+您可以通过配置文件或命令行参数修改日志文件的位置。
+
 ## 注意事项
 
 - 确保 ClamAV 守护进程正在运行并可访问。
@@ -139,3 +176,7 @@ api_key_file: "api_keys.txt"
 ## 贡献
 
 欢迎提交 Issue 和 Pull Request 来改进这个项目。
+
+## 许可证
+
+[MIT License](LICENSE)
